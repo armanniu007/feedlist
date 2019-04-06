@@ -1,0 +1,33 @@
+apply plugin: 'groovy'
+apply plugin: 'maven'
+
+dependencies {
+    compile gradleApi()
+    compile localGroovy()
+    compile 'com.android.tools.build:gradle:3.0.1'
+    compile 'com.arman.common:feedlist:0.0.1'
+}
+
+repositories {
+    mavenCentral()
+    google()
+}
+
+uploadArchives {
+    configuration = configurations.archives
+    repositories {
+        mavenDeployer {
+            snapshotRepository(url: uri("${rootProject.projectDir}/repo"))
+            repository(url: uri("${rootProject.projectDir}/repo"))
+            pom.project {
+                //版本，有更新时修改版本号，在上传
+                version '0.0.1'
+                //名字
+                artifactId 'feedlist-plugin'
+                groupId 'com.arman.common'
+                packaging 'aar'
+                description 'XXXXX'
+            }
+        }
+    }
+}
