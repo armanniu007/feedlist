@@ -4,7 +4,7 @@ import android.content.Context;
 import android.view.View;
 
 @FeedItem("")
-public class EmptyFLItem extends BaseFLItem {
+public class EmptyFLItem extends BaseFLItem<FLItemData> {
 
     public EmptyFLItem(Context context) {
         super(context);

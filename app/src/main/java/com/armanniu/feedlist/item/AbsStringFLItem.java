@@ -6,14 +6,14 @@ import com.armanniu.feedlist.FeedItem;
 import com.armanniu.feedlist.data.AbstractFLData;
 
 @FeedItem("AbsStringFLItem")
-public class AbsStringFLItem extends BaseFLItem<AbstractFLData<String>> {
+public class AbsStringFLItem<T> extends BaseFLItem<AbstractFLData<T>> {
 
     public AbsStringFLItem(Context context) {
         super(context);
     }
 
     @Override
-    protected void onBindData(AbstractFLData<String> stringAbstractFLData) throws Exception {
+    protected void onBindData(AbstractFLData<T> tAbstractFLData) throws Exception {
 
     }
 }

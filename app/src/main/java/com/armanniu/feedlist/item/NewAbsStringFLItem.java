@@ -7,7 +7,7 @@ import com.armanniu.feedlist.data.AbstractFLData;
 import com.armanniu.feedlist.data.NewStringFLData;
 
 @FeedItem("NewAbsStringFLItem")
-public class NewAbsStringFLItem extends AbsStringFLItem {
+public class NewAbsStringFLItem extends AbsStringFLItem<String> {
 
     public NewAbsStringFLItem(Context context) {
         super(context);

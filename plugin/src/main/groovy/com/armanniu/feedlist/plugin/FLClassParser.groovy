@@ -74,33 +74,8 @@ class FLClassParser implements FLJson {
         jarFile.close()
     }
 
-    FLItem fromTplId(String tplId) {
-        def parse = itemList.find {
-            return it.tplId == tplId
-        }
-        return parse
-    }
-
-    FLItem fromClassName(String className) {
-        def parse = itemList.find {
-            return it.className == className
-        }
-        return parse
-    }
-
-    FLItem fromSuperName(String superName) {
-        def parse = itemList.find {
-            return it.superName == superName
-        }
-        return parse
-    }
-
-    FLItem fromIndex(int pos) {
-        itemList.get(pos)
-    }
-
-    int getCount() {
-        return itemList.size()
+    def getItemList() {
+        return itemList
     }
 
     void parseFlItems() {

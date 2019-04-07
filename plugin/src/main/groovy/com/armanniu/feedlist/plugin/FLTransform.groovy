@@ -2,10 +2,14 @@ package com.armanniu.feedlist.plugin
 
 import com.android.build.api.transform.*
 import com.android.build.gradle.internal.pipeline.TransformManager
+import com.armanniu.feedlist.plugin.signature.FLConstant
 import com.google.common.collect.Sets
 import org.apache.commons.codec.digest.DigestUtils
 import org.apache.commons.io.FileUtils
 import org.gradle.api.Project
+
+import java.util.jar.JarOutputStream
+import java.util.zip.ZipEntry
 
 class FLTransform extends Transform {
 
@@ -108,5 +112,23 @@ class FLTransform extends Transform {
             throwable.printStackTrace()
             throw throwable
         }
+
+        //根据遍历结果自动生成{FeedItemFactoryImp.class}文件
+        FLFactoryWriter writer = new FLFactoryWriter()
+        File meta_file = outputProvider.getContentLocation("feedlist", getOutputTypes(), supportScopes, Format.JAR)
+        if (!meta_file.getParentFile().exists()) {
+            meta_file.getParentFile().mkdirs()
+        }
+        if (meta_file.exists()) {
+            meta_file.delete()
+        }
+        FileOutputStream fos = new FileOutputStream(meta_file)
+        JarOutputStream jarOutputStream = new JarOutputStream(fos)
+        ZipEntry zipEntry = new ZipEntry("${FLConstant.FACTORY}.class")
+        jarOutputStream.putNextEntry(zipEntry)
+        jarOutputStream.write(writer.generateClass(classParser.itemList))
+        jarOutputStream.closeEntry()
+        jarOutputStream.close()
+        fos.close()
     }
 }
