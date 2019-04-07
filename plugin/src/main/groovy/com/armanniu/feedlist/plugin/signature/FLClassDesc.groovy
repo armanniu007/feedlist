@@ -4,11 +4,27 @@ import com.armanniu.feedlist.plugin.FLJson
 import com.armanniu.feedlist.plugin.FLUtil
 import org.json.simple.JSONObject
 
+/**
+ * 类描述
+ *
+ * map: com/armanniu/feedlist/StringFLItem<A:Ljava/lang/Object;T::Lcom/armanniu/feedlist/FLItemData;B::Lcom/armanniu/feedlist/Data<TT;>;>
+ *
+ * to: FLClass<[{descName}:]{type}{FLClassDesc}...>
+ *
+ */
 class FLClassDesc implements FLConstant, Cloneable, FLJson {
     private static def debug = true
-
+    /**
+     * 描述所属的类
+     */
     private final FLClass flClass
+    /**
+     * 泛型修饰集合
+     */
     private final List<Desc> descList
+    /**
+     * 父类或接口的类描述
+     */
     private List<FLClassDesc> superClassDescList
 
     private FLClassDesc(FLClass flClass, List<Desc> descList) {
