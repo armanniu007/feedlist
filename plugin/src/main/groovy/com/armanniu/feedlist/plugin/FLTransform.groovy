@@ -2,12 +2,20 @@ package com.armanniu.feedlist.plugin
 
 import com.android.build.api.transform.*
 import com.android.build.gradle.internal.pipeline.TransformManager
+import com.armanniu.feedlist.plugin.reject.FLFactoryVisitor
+import com.armanniu.feedlist.plugin.reject.FLFactoryWriter
 import com.armanniu.feedlist.plugin.signature.FLConstant
 import com.google.common.collect.Sets
 import org.apache.commons.codec.digest.DigestUtils
 import org.apache.commons.io.FileUtils
+import org.apache.commons.io.IOUtils
 import org.gradle.api.Project
+import org.objectweb.asm.ClassReader
+import org.objectweb.asm.ClassWriter
+import org.objectweb.asm.Opcodes
 
+import java.util.jar.JarEntry
+import java.util.jar.JarFile
 import java.util.jar.JarOutputStream
 import java.util.zip.ZipEntry
 
@@ -92,12 +100,14 @@ class FLTransform extends Transform {
 
             //对类型为jar文件的input进行遍历
             input.jarInputs.each { JarInput jarInput ->
-                // 重命名输出文件（同目录copyFile会冲突）
-                def md5Name = DigestUtils.md5Hex(jarInput.file.getAbsolutePath())
-                //生成输出路径
-                def outFile = outputProvider.getContentLocation(md5Name, jarInput.contentTypes, supportScopes, Format.JAR)
-                FileUtils.copyFile(jarInput.file, outFile)
-                classParser.fromJar(jarInput)
+                if (!injectFLAdapter(outputProvider,jarInput)){
+                    // 重命名输出文件（同目录copyFile会冲突）
+                    def md5Name = DigestUtils.md5Hex(jarInput.file.getAbsolutePath())
+                    //生成输出路径
+                    def outFile = outputProvider.getContentLocation(md5Name, jarInput.contentTypes, supportScopes, Format.JAR)
+                    FileUtils.copyFile(jarInput.file, outFile)
+                    classParser.fromJar(jarInput)
+                }
             }
         }
         try {
@@ -108,11 +118,16 @@ class FLTransform extends Transform {
             println("-----------------------------------")
             println(classParser.toString())
             println("-----------------------------------")
+
+            writeFLFactory(outputProvider, classParser)
+
         } catch (Throwable throwable) {
             throwable.printStackTrace()
             throw throwable
         }
+    }
 
+    private void writeFLFactory(TransformOutputProvider outputProvider, FLClassParser classParser) {
         //根据遍历结果自动生成{FeedItemFactoryImp.class}文件
         FLFactoryWriter writer = new FLFactoryWriter()
         File meta_file = outputProvider.getContentLocation("feedlist", getOutputTypes(), supportScopes, Format.JAR)
@@ -130,5 +145,60 @@ class FLTransform extends Transform {
         jarOutputStream.closeEntry()
         jarOutputStream.close()
         fos.close()
+    }
+
+    /**
+     * Gson中注入feed流解析工厂
+     * @param outputProvider
+     * @param jarInput
+     */
+    boolean injectFLAdapter(TransformOutputProvider outputProvider, JarInput jarInput) {
+        try {
+            //首先判断是否是FLAdapter的jar包
+            def jarFile = new JarFile(jarInput.file)
+            def isFLAdapter = false
+            def enumeration = jarFile.entries()
+            while (enumeration.hasMoreElements()) {
+                JarEntry jarEntry = (JarEntry) enumeration.nextElement()
+                if (jarEntry.getName() == "${FLConstant.FLAdapter}.class") {
+                    isFLAdapter = true
+                    break
+                }
+            }
+            if (!isFLAdapter){
+                return false
+            }
+
+            // 重命名输出文件（同目录copyFile会冲突）
+            def md5Name = DigestUtils.md5Hex(jarInput.file.getAbsolutePath())
+            //生成输出路径
+            def outFile = outputProvider.getContentLocation(md5Name, jarInput.contentTypes, supportScopes, Format.JAR)
+            def fos = new FileOutputStream(outFile)
+            def jarOutputStream = new JarOutputStream(fos)
+            enumeration = jarFile.entries()
+            while (enumeration.hasMoreElements()) {
+                def jarEntry = (JarEntry) enumeration.nextElement()
+                def entryName = jarEntry.getName()
+                def inputStream = jarFile.getInputStream(jarEntry)
+                def bytes = IOUtils.toByteArray(inputStream)
+                ClassReader classReader = new ClassReader(bytes)
+                ClassWriter classWriter = new ClassWriter(classReader, ClassWriter.COMPUTE_MAXS)
+                FLFactoryVisitor cv = new FLFactoryVisitor(Opcodes.ASM5, classWriter)
+                classReader.accept(cv, ClassReader.EXPAND_FRAMES)
+                bytes = classWriter.toByteArray()
+                ZipEntry zipEntry = new ZipEntry(entryName)
+                jarOutputStream.putNextEntry(zipEntry)
+                jarOutputStream.write(bytes)
+                inputStream.close()
+            }
+            jarOutputStream.closeEntry()
+            jarOutputStream.close()
+            fos.close()
+            jarFile.close()
+            return true
+        } catch (Throwable throwable) {
+            throwable.printStackTrace()
+            throw throwable
+        }
     }
 }

@@ -34,7 +34,7 @@ public abstract class FLAdapter<T extends FLItemData> {
         return mType;
     }
 
-    public static FLAdapter getAdater(String tplId) {
+    public static FLAdapter getAdapter(String tplId) {
         return DEFAULT;
     }
 }
