@@ -115,14 +115,17 @@ class FLClassDesc implements FLConstant, Cloneable, FLJson {
         if (type != TYPE_SIGN && type != TYPE_CLASS) {
             throw new IllegalAccessException("parse ${sign} error to get class type ${className}:${type}")
         }
-        FLClass flClass
+        def flClass
+        def newClassName
         if (className.indexOf("<") <= 0) {
             flClass = new FLClass(className, null)
+            newClassName = className
         } else {
             def signIndex = className.indexOf("<")
-            flClass = new FLClass(className.substring(0, signIndex), className.substring(signIndex))
+            newClassName = className.substring(0, signIndex)
+            flClass = new FLClass(newClassName, className.substring(signIndex))
         }
-        def desc = new Desc(create(flClass), type, className, isInterface, name, index)
+        def desc = new Desc(create(flClass), type, newClassName, isInterface, name, index)
         if (debug) {
             println("createDesc " + desc.toString())
         }

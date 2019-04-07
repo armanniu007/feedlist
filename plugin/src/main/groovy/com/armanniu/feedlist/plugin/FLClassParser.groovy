@@ -150,13 +150,17 @@ class FLClassParser implements FLJson {
             if (debug) {
                 println("forEach2 ${superDesc}")
             }
-            if (superDesc != null) {
+            if (superDesc != null) { //merge
                 def desc
                 if (it.descList == null || it.descList.size() <= superDesc.index) {
                     desc = new FLClassDesc.Desc(superDesc.classDesc, superDesc.type, superDesc.className, superDesc.isInterface, superDesc.descName, Integer.MAX_VALUE)
                 } else {
                     def itDesc = it.descList[superDesc.index]
-                    desc = classDesc.descList.find({ that -> that.descName == itDesc.className })
+                    if (itDesc.type == FLConstant.TYPE_CLASS) {
+                        desc = itDesc
+                    } else {
+                        desc = classDesc.descList.find({ that -> that.descName == itDesc.className })
+                    }
                 }
                 if (debug) {
                     println("forEach3 ${desc}")
