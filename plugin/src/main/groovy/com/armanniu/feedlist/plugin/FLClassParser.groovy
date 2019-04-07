@@ -19,7 +19,13 @@ class FLClassParser implements FLJson {
     private def classList = new ArrayList<FLClass>()
     private def classDescList = new ArrayList<FLClassDesc>()
     private def ignoreList = new ArrayList<String>(Arrays.asList(FLConstant.OBJECT))
-    private def ignorePackageList = new ArrayList<String>(Arrays.asList("android/", "androidx/", "java/", "kotlin/", "org/intellij/lang"))
+    private def ignorePackageList = new ArrayList<String>(Arrays.asList(
+            "android/",
+            "androidx/",
+            "java/",
+            "kotlin/",
+            "org/intellij/lang",
+            "org/jetbrains/annotations"))
 
     FLClassParser(Project project) {
 
