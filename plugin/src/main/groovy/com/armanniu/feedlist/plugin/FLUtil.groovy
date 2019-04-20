@@ -26,4 +26,8 @@ class FLUtil {
         })
         return array
     }
+
+    static String[] array(String... arr) {
+        return arr
+    }
 }

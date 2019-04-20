@@ -8,7 +8,7 @@ class FLItem implements FLJson {
 
     private String tplId
     private FLClass flClass
-    private FLClassDesc.Desc itemDesc
+    private List<FLClassDesc.Generic> labelItemGenericList
 
     FLItem(String tplId, FLClass flClass) {
         this.tplId = tplId
@@ -23,12 +23,12 @@ class FLItem implements FLJson {
         return flClass
     }
 
-    FLClassDesc.Desc getItemDesc() {
-        return itemDesc
+    List<FLClassDesc.Generic> getLabelItemGenericList() {
+        return labelItemGenericList
     }
 
-    void setItemDesc(FLClassDesc.Desc itemDesc) {
-        this.itemDesc = itemDesc
+    void setLabelItemGenericList(List<FLClassDesc.Generic> labelItemGenericList) {
+        this.labelItemGenericList = labelItemGenericList
     }
 
     @Override
@@ -36,7 +36,7 @@ class FLItem implements FLJson {
         JSONObject jsonObject = new JSONObject()
         jsonObject.put("tplId", tplId)
         jsonObject.put("flClass", FLUtil.fromObject(flClass))
-        jsonObject.put("itemDesc", FLUtil.fromObject(itemDesc))
+        jsonObject.put("labelItemGenericList", FLUtil.fromArray(labelItemGenericList))
         return jsonObject
     }
 

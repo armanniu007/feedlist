@@ -15,7 +15,8 @@ import java.util.jar.JarFile
 
 class FLClassParser implements FLJson {
     private static debug = true
-    private def itemList = new ArrayList<FLItem>()
+    private def originalItemList = new ArrayList<FLItem>()
+    private def recordItemList = new ArrayList<FLItem>()
     private def classList = new ArrayList<FLClass>()
     private def classDescList = new ArrayList<FLClassDesc>()
     private def ignoreList = new ArrayList<String>(Arrays.asList(FLConstant.OBJECT))
@@ -75,99 +76,252 @@ class FLClassParser implements FLJson {
     }
 
     def getItemList() {
-        return itemList
+        return originalItemList
     }
 
     void parseFlItems() {
-        new ArrayList<>(itemList).forEach({
+        recordItemList.removeAll(originalItemList)
+        recordItemList.addAll(originalItemList)
+        originalItemList.forEach({
             parseFlItem(it)
         })
     }
 
     private void parseFlItem(FLItem flItem) {
-        if (flItem.itemDesc != null) {
+        if (flItem.labelItemGenericList != null) {
             return
         }
         if (debug) {
-            println("parseFlItem-->${flItem.toString()}")
+            println("")
+            println("-------------| parseFlItem sta |-----------------")
+            println("--> parseFlItem ${flItem}")
         }
-        parseFlItemClass(flItem.flClass)
+        def labelItem = parseFlItemClass(flItem.flClass)
+        if (debug) {
+            println("<-- parseFlItem ${labelItem}")
+            println("-------------| parseFlItem end |-----------------")
+            println("")
+        }
     }
 
-    private FLClassDesc.Desc parseFlItemClass(FLClass flClass) {
-        if (flClass == null || ignoreList.contains(flClass.className)) { //如果是忽略的类，停止查找
+    private List<FLClassDesc.Generic> parseFlItemClass(FLClass flClass) {
+        if (debug) {
+            println("")
+            println("--> parseFlItemClass")
+            println("flClass: ${flClass}")
+        }
+        if (flClass == null) { //如果是忽略的类，停止查找
             return null
         }
+        if (ignoreList.contains(flClass.className)) {
+            if (debug) {
+                println("<-- parseFlItemClass ignore")
+                println("")
+            }
+            return null
+        }
+        def item = recordItemList.find({ it.flClass.className == flClass.className })
+        if (item != null && item.labelItemGenericList != null) { //从记录里边查找
+            if (debug) {
+                println("<-- parseFlItemClass from record")
+                println("")
+            }
+            return item.labelItemGenericList
+        }
+        def rootLabels = getRootItemGenericList(flClass)
+        if (rootLabels != null) {
+            if (debug) {
+                println("<-- parseFlItemClass from root")
+                println("")
+            }
+            recordLabelItemGeneric(flClass, rootLabels)
+            return rootLabels
+        }
+        def classDesc = getClassDesc(flClass)
+        def labelGenericList = classDesc.labelGenericList
+        for (int i = 0; i < labelGenericList.size(); i++) {
+            def labelGenericClassDesc = labelGenericList[i]
+            if (debug) {
+                println("labelGenericClassDesc: ${labelGenericClassDesc}")
+            }
+            if (labelGenericClassDesc == null) {
+                continue
+            }
+            def realClass = classList.find({ that -> that.className == labelGenericClassDesc.flClass.className })
+            if (realClass == null) {
+                continue
+            }
+            def realClassDesc = getClassDesc(realClass)
+            def realClassFlItemLabels = parseFlItemClass(realClass)
+            if (debug) {
+                println("realClassFlItemLabels: ${realClassFlItemLabels}")
+            }
+            if (realClassFlItemLabels == null) {
+                continue
+            }
+            if (labelGenericClassDesc.genericList == null || labelGenericClassDesc.genericList.isEmpty()) {
+                def clone = cloneGenericList(realClassFlItemLabels)
+                setGenericIndexInvalid(clone)
+                recordLabelItemGeneric(flClass, clone)
+                if (debug) {
+                    println("clone: ${clone}")
+                    println("<-- parseFlItemClass no label")
+                }
+                return clone
+            }
+            //merge generics
+
+            //label index
+            def labeledGenericsClone = cloneGenericList(labelGenericClassDesc.genericList)
+            setGenericIndexInvalid(labeledGenericsClone)
+            mergeGenericLabelsFromRight(labeledGenericsClone, classDesc.genericList)
+            if (debug) {
+                println("labeledGenericsClone: ${labeledGenericsClone}")
+            }
+            def mergedFlItemLabels = mergeFlItemLabels(realClassFlItemLabels, realClassDesc.genericList, labeledGenericsClone)
+            if (debug) {
+                if (debug) {
+                    println("mergedFlItemLabels: ${mergedFlItemLabels}")
+                    println("<-- parseFlItemClass merge")
+                }
+            }
+            recordLabelItemGeneric(flClass, mergedFlItemLabels)
+            return mergedFlItemLabels
+        }
+        ignoreList.add(flClass.className)
         if (debug) {
-            println("parseFlItemClass-->${flClass.toString()}")
+            println("<-- parseFlItemClass not found")
+            println("")
         }
-        def item = itemList.find({ it.flClass.className == flClass.className })
-        if (item != null && item.itemDesc != null) { //从记录里边查找
-            return item.itemDesc
+        return null
+
+    }
+
+    private void recordLabelItemGeneric(FLClass flClass, List<FLClassDesc.Generic> labelItemGenericList) {
+        def record = recordItemList.find({ it.flClass.className == flClass.className })
+        if (record == null) {
+            record = new FLItem(null, flClass)
+            record.labelItemGenericList = labelItemGenericList
+            recordItemList.add(record)
+        } else {
+            record.labelItemGenericList = labelItemGenericList
         }
+    }
+
+    private List<FLClassDesc.Generic> getRootItemGenericList(FLClass flClass) {
+        FLClassDesc classDesc = getClassDesc(flClass)
+        if (flClass.className == FLConstant.FEED_ITEM) {
+            def genericList = classDesc.genericList
+            return cloneGenericList(genericList)
+        }
+        return null
+    }
+
+    private FLClassDesc getClassDesc(FLClass flClass) {
         def classDesc = classDescList.find({ it.flClass.className == flClass.className })
         if (classDesc == null) { //创建新的desc
             classDesc = FLClassDesc.create(flClass)
             classDescList.add(classDesc)
         }
-        if (flClass.className == FLConstant.FEED_ITEM) {
-            if (classDesc.descList == null || classDesc.descList.size() < 1) {
-                throw new IllegalAccessException("${FLConstant.FEED_ITEM} error")
-            }
-            if (classDesc.descList == null || classDesc.descList.isEmpty()) {
-                return null
-            }
-            def first = classDesc.descList.first()
-            return first
-        }
+        classDesc
+    }
 
-        for (int i = 0; i < classDesc.superClassDescList.size(); i++) {
-            def it = classDesc.superClassDescList[i]
-            if (debug) {
-                println("forEach ${it.toString()}")
+    private static List<FLClassDesc.Generic> cloneGenericList(List<FLClassDesc.Generic> genericList) {
+        def list = new ArrayList<FLClassDesc.Generic>()
+        if (genericList == null) {
+            return list
+        } else {
+            def size = genericList.size()
+            for (int i = 0; i < size; i++) {
+                list.add(genericList[i].clone())
             }
-            def superFlClass = classList.find({ that -> that.className == it.flClass.className })
-            def superDesc = parseFlItemClass(superFlClass)
-            if (debug) {
-                println("forEach2 ${superDesc}")
+            return list
+        }
+    }
+
+    private static void setGenericIndexInvalid(List<FLClassDesc.Generic> genericList) {
+        if (genericList == null || genericList.isEmpty()) {
+            return
+        }
+        genericList.forEach({
+            it.index = Integer.MAX_VALUE
+            if (it.classDesc != null) {
+                setGenericIndexInvalid(it.classDesc.genericList)
             }
-            if (superDesc != null) { //merge
-                def desc
-                if (it.descList == null || it.descList.size() <= superDesc.index) {
-                    desc = new FLClassDesc.Desc(superDesc.classDesc, superDesc.type, superDesc.className, superDesc.isInterface, superDesc.descName, Integer.MAX_VALUE)
+        })
+    }
+
+    private static void mergeGenericLabelsFromRight(List<FLClassDesc.Generic> left, List<FLClassDesc.Generic> right) {
+        if (left == null || left.isEmpty() || right == null || right.isEmpty()) {
+            return
+        }
+        left.forEach({ lg ->
+            def lrLabel = right.find({ rg ->
+                if (lg.labelName == null || lg.labelName.length() == 0) {
+                    rg.labelName == lg.className
                 } else {
-                    def itDesc = it.descList[superDesc.index]
-                    if (itDesc.type == FLConstant.TYPE_CLASS) {
-                        desc = itDesc
-                    } else {
-                        desc = classDesc.descList.find({ that -> that.descName == itDesc.className })
-                    }
+                    rg.labelName == lg.labelName
                 }
-                if (debug) {
-                    println("forEach3 ${desc}")
-                }
-                if (desc != null) {
-                    def record = itemList.find({ it.flClass.className == flClass.className })
-                    if (record == null) {
-                        record = new FLItem(null, flClass)
-                        record.itemDesc = desc
-                        itemList.add(record)
+            })
+            if (lrLabel != null) {
+                lg.className = lrLabel.labelName
+                lg.index = lrLabel.index
+                lg.labelName = ''
+            }
+            if (lg.classDesc != null) {
+                mergeGenericLabelsFromRight(lg.classDesc.genericList, right)
+            }
+        })
+    }
+
+
+    private static List<FLClassDesc.Generic> mergeFlItemLabels(List<FLClassDesc.Generic> itemLabels,
+                                                               List<FLClassDesc.Generic> originalGenerics,
+                                                               List<FLClassDesc.Generic> labeledGenerics) {
+
+        def mergedFlItemLabels = new ArrayList<FLClassDesc.Generic>()
+        for (int j = 0; j < itemLabels.size(); j++) {
+            def realLabel = itemLabels[j]
+            def findK = -1
+            if (realLabel.index != Integer.MAX_VALUE) {
+                for (int k = 0; k < originalGenerics.size(); k++) {
+                    if (realLabel.labelName == null || realLabel.labelName.trim().length() == 0) {
+                        if (realLabel.className == originalGenerics[k].labelName) {
+                            findK = k
+                            break
+                        }
                     } else {
-                        record.itemDesc = desc
+                        if (realLabel.labelName == originalGenerics[k].labelName) {
+                            findK = k
+                            break
+                        }
                     }
-                    return desc
                 }
             }
+            if (findK == -1) {
+                def mergedFlItemLabel = realLabel.clone()
+                def genericList
+                if (mergedFlItemLabel.classDesc != null
+                        && (genericList = mergedFlItemLabel.classDesc.genericList) != null
+                        && !genericList.isEmpty()) {
+                    def newList = mergeFlItemLabels(genericList, originalGenerics, labeledGenerics)
+                    genericList.clear()
+                    genericList.addAll(newList)
+                }
+                mergedFlItemLabels.add(mergedFlItemLabel)
+            } else {
+                def mergedFlItemLabel = labeledGenerics[findK].clone()
+                mergedFlItemLabels.add(mergedFlItemLabel)
+            }
         }
-        ignoreList.add(flClass.className)
-        return null
-
+        mergedFlItemLabels
     }
 
     @Override
     JSONObject getJsonObject() {
         JSONObject jsonObject = new JSONObject()
-        jsonObject.put("itemList", FLUtil.fromArray(itemList))
+        jsonObject.put("originalItemList", FLUtil.fromArray(originalItemList))
+        jsonObject.put("recordItemList", FLUtil.fromArray(recordItemList))
         jsonObject.put("classList", FLUtil.fromArray(classList))
         jsonObject.put("classDescList", FLUtil.fromArray(classDescList))
         jsonObject.put("ignoreList", FLUtil.fromArray(ignoreList))
@@ -225,7 +379,7 @@ class FLClassParser implements FLJson {
             def flClass = new FLClass(name, signature, superName, interfaces, "")
             classList.add(flClass)
             if (isFeedItem) {
-                itemList.add(new FLItem(tplId, flClass))
+                originalItemList.add(new FLItem(tplId, flClass))
             }
             if (debug && !ignore) {
                 println("FLClassReader ---> visitEnd")

@@ -100,59 +100,70 @@ class FLTransform extends Transform {
 
             //对类型为jar文件的input进行遍历
             input.jarInputs.each { JarInput jarInput ->
-                if (!injectFLAdapter(outputProvider,jarInput)){
+                if (!injectFLFactory(outputProvider, jarInput)) {
                     // 重命名输出文件（同目录copyFile会冲突）
                     def md5Name = DigestUtils.md5Hex(jarInput.file.getAbsolutePath())
                     //生成输出路径
                     def outFile = outputProvider.getContentLocation(md5Name, jarInput.contentTypes, supportScopes, Format.JAR)
                     FileUtils.copyFile(jarInput.file, outFile)
-                    classParser.fromJar(jarInput)
                 }
+                classParser.fromJar(jarInput)
             }
         }
         try {
-            println("-----------------------------------")
-            println(classParser.toString())
             println("-----------------------------------")
             classParser.parseFlItems()
             println("-----------------------------------")
             println(classParser.toString())
             println("-----------------------------------")
+        } catch (Throwable throwable) {
+            throwable.printStackTrace()
+            throw throwable
+        }
+        //createFLFactoryImpl(outputProvider, classParser)
+    }
 
-            writeFLFactory(outputProvider, classParser)
-
+    /**
+     * 创建Factory实现类
+     *
+     * @param outputProvider
+     * @param classParser
+     */
+    private void createFLFactoryImpl(TransformOutputProvider outputProvider, FLClassParser classParser) {
+        try {
+            //根据遍历结果自动生成{FeedItemFactoryImp.class}文件
+            FLFactoryWriter writer = new FLFactoryWriter()
+            File meta_file = outputProvider.getContentLocation("feedlist", getOutputTypes(), supportScopes, Format.JAR)
+            if (!meta_file.getParentFile().exists()) {
+                meta_file.getParentFile().mkdirs()
+            }
+            if (meta_file.exists()) {
+                meta_file.delete()
+            }
+            FileOutputStream fos = new FileOutputStream(meta_file)
+            JarOutputStream jarOutputStream = new JarOutputStream(fos)
+            ZipEntry zipEntry = new ZipEntry("${FLConstant.FACTORY_IMPL}.class")
+            jarOutputStream.putNextEntry(zipEntry)
+            jarOutputStream.write(writer.generateClass(classParser.itemList))
+            jarOutputStream.closeEntry()
+            jarOutputStream.close()
+            fos.close()
         } catch (Throwable throwable) {
             throwable.printStackTrace()
             throw throwable
         }
     }
 
-    private void writeFLFactory(TransformOutputProvider outputProvider, FLClassParser classParser) {
-        //根据遍历结果自动生成{FeedItemFactoryImp.class}文件
-        FLFactoryWriter writer = new FLFactoryWriter()
-        File meta_file = outputProvider.getContentLocation("feedlist", getOutputTypes(), supportScopes, Format.JAR)
-        if (!meta_file.getParentFile().exists()) {
-            meta_file.getParentFile().mkdirs()
-        }
-        if (meta_file.exists()) {
-            meta_file.delete()
-        }
-        FileOutputStream fos = new FileOutputStream(meta_file)
-        JarOutputStream jarOutputStream = new JarOutputStream(fos)
-        ZipEntry zipEntry = new ZipEntry("${FLConstant.FACTORY}.class")
-        jarOutputStream.putNextEntry(zipEntry)
-        jarOutputStream.write(writer.generateClass(classParser.itemList))
-        jarOutputStream.closeEntry()
-        jarOutputStream.close()
-        fos.close()
-    }
-
     /**
-     * Gson中注入feed流解析工厂
+     * 在默认的factory中注入代理类factory对象
+     *
      * @param outputProvider
      * @param jarInput
      */
-    boolean injectFLAdapter(TransformOutputProvider outputProvider, JarInput jarInput) {
+    boolean injectFLFactory(TransformOutputProvider outputProvider, JarInput jarInput) {
+        if (jarInput != null) {
+            return false
+        }
         try {
             //首先判断是否是FLAdapter的jar包
             def jarFile = new JarFile(jarInput.file)
@@ -160,12 +171,12 @@ class FLTransform extends Transform {
             def enumeration = jarFile.entries()
             while (enumeration.hasMoreElements()) {
                 JarEntry jarEntry = (JarEntry) enumeration.nextElement()
-                if (jarEntry.getName() == "${FLConstant.FLAdapter}.class") {
+                if (jarEntry.getName() == "${FLConstant.FACTORY_DEFAULT}.class") {
                     isFLAdapter = true
                     break
                 }
             }
-            if (!isFLAdapter){
+            if (!isFLAdapter) {
                 return false
             }
 
@@ -181,11 +192,13 @@ class FLTransform extends Transform {
                 def entryName = jarEntry.getName()
                 def inputStream = jarFile.getInputStream(jarEntry)
                 def bytes = IOUtils.toByteArray(inputStream)
-                ClassReader classReader = new ClassReader(bytes)
-                ClassWriter classWriter = new ClassWriter(classReader, ClassWriter.COMPUTE_MAXS)
-                FLFactoryVisitor cv = new FLFactoryVisitor(Opcodes.ASM5, classWriter)
-                classReader.accept(cv, ClassReader.EXPAND_FRAMES)
-                bytes = classWriter.toByteArray()
+                if (entryName == "${FLConstant.FACTORY_DEFAULT}.class") {
+                    ClassReader classReader = new ClassReader(bytes)
+                    ClassWriter classWriter = new ClassWriter(classReader, ClassWriter.COMPUTE_MAXS)
+                    FLFactoryVisitor cv = new FLFactoryVisitor(Opcodes.ASM5, classWriter)
+                    classReader.accept(cv, ClassReader.EXPAND_FRAMES)
+                    bytes = classWriter.toByteArray()
+                }
                 ZipEntry zipEntry = new ZipEntry(entryName)
                 jarOutputStream.putNextEntry(zipEntry)
                 jarOutputStream.write(bytes)

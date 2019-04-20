@@ -9,7 +9,7 @@ import org.json.simple.JSONObject
  *
  * map: com/armanniu/feedlist/StringFLItem<A:Ljava/lang/Object;T::Lcom/armanniu/feedlist/FLItemData;B::Lcom/armanniu/feedlist/Data<TT;>;>
  *
- * to: FLClass<[{descName}:]{type}{FLClassDesc}...>
+ * to: FLClass<[{labelName}:]{type}{FLClassDesc}...>
  *
  */
 class FLClassDesc implements FLConstant, Cloneable, FLJson {
@@ -21,46 +21,46 @@ class FLClassDesc implements FLConstant, Cloneable, FLJson {
     /**
      * 泛型修饰集合
      */
-    private final List<Desc> descList
+    private final List<Generic> genericList
     /**
      * 父类或接口的类描述
      */
-    private List<FLClassDesc> superClassDescList
+    private List<FLClassDesc> labelGenericList
 
-    private FLClassDesc(FLClass flClass, List<Desc> descList) {
+    private FLClassDesc(FLClass flClass, List<Generic> genericList) {
         this.flClass = flClass
-        this.descList = descList
+        this.genericList = genericList
     }
 
     FLClass getFlClass() {
         return flClass
     }
 
-    List<Desc> getDescList() {
-        return descList
+    List<Generic> getGenericList() {
+        return genericList
     }
 
-    List<FLClassDesc> getSuperClassDescList() {
-        if (superClassDescList == null) {
-            superClassDescList = getSuperFLClassList(flClass)
+    List<FLClassDesc> getLabelGenericList() {
+        if (labelGenericList == null) {
+            labelGenericList = getSuperFLClassList(flClass)
         }
-        return superClassDescList
+        return labelGenericList
     }
 
     @Override
-    Object clone() throws CloneNotSupportedException {
+    FLClassDesc clone() throws CloneNotSupportedException {
         def clone
-        if (descList != null) {
-            def cloneDescList = new ArrayList<Desc>()
-            descList.forEach({ cloneDescList.add(it.clone()) })
+        if (genericList != null) {
+            def cloneDescList = new ArrayList<Generic>()
+            genericList.forEach({ cloneDescList.add(it.clone()) })
             clone = new FLClassDesc(flClass, cloneDescList)
         } else {
             clone = new FLClassDesc(flClass, null)
         }
-        if (superClassDescList != null) {
+        if (labelGenericList != null) {
             def cloneSuperClassDescList = new ArrayList<FLClassDesc>()
-            superClassDescList.forEach({ cloneSuperClassDescList.add(it.clone()) })
-            clone.superClassDescList = cloneSuperClassDescList
+            labelGenericList.forEach({ cloneSuperClassDescList.add(it.clone()) })
+            clone.labelGenericList = cloneSuperClassDescList
         }
         return clone
     }
@@ -77,7 +77,7 @@ class FLClassDesc implements FLConstant, Cloneable, FLJson {
         return classDesc
     }
 
-    private static List<Desc> createDescList(String signature) {
+    private static List<Generic> createDescList(String signature) {
         if (signature == null || signature.length() == 0) {
             return null
         }
@@ -92,7 +92,7 @@ class FLClassDesc implements FLConstant, Cloneable, FLJson {
         if (array == null || array.isEmpty()) {
             return null
         }
-        def list = new ArrayList<Desc>()
+        def list = new ArrayList<Generic>()
         for (int i = 0; i < array.size(); i++) {
             def desc = createDesc(array[i], i)
             if (desc != null) {
@@ -102,7 +102,7 @@ class FLClassDesc implements FLConstant, Cloneable, FLJson {
         return list
     }
 
-    private static Desc createDesc(String sign, int index) {
+    private static Generic createDesc(String sign, int index) {
         if (debug) {
             println("createDesc " + sign)
         }
@@ -125,7 +125,7 @@ class FLClassDesc implements FLConstant, Cloneable, FLJson {
         if (spl[1] == null || spl[1].length() == 0) {
             throw new IllegalAccessException("parse ${sign} error to get class name")
         }
-        def name = spl[0]
+        def labelName = spl[0]
         def type = spl[1].charAt(0).toString()
         def className = spl[1].substring(1)
         if (type != TYPE_SIGN && type != TYPE_CLASS) {
@@ -141,7 +141,7 @@ class FLClassDesc implements FLConstant, Cloneable, FLJson {
             newClassName = className.substring(0, signIndex)
             flClass = new FLClass(newClassName, className.substring(signIndex))
         }
-        def desc = new Desc(create(flClass), type, newClassName, isInterface, name, index)
+        def desc = new Generic(create(flClass), type, newClassName, isInterface, labelName, index)
         if (debug) {
             println("createDesc " + desc.toString())
         }
@@ -301,8 +301,8 @@ class FLClassDesc implements FLConstant, Cloneable, FLJson {
     JSONObject getJsonObject() {
         JSONObject jsonObject = new JSONObject()
         jsonObject.put("flClass", FLUtil.fromObject(flClass))
-        jsonObject.put("descList", FLUtil.fromArray(descList))
-        jsonObject.put("superClassDescList", FLUtil.fromArray(superClassDescList))
+        jsonObject.put("genericList", FLUtil.fromArray(genericList))
+        jsonObject.put("labelGenericList", FLUtil.fromArray(labelGenericList))
         return jsonObject
     }
 
@@ -312,21 +312,21 @@ class FLClassDesc implements FLConstant, Cloneable, FLJson {
     }
 
 
-    static class Desc implements Cloneable, FLJson {
+    static class Generic implements Cloneable, FLJson {
 
         private FLClassDesc classDesc
         private String type
         private String className
         private boolean isInterface
-        private String descName
+        private String labelName
         private int index
 
-        Desc(FLClassDesc classDesc, String type, String className, boolean isInterface, String descName, int index) {
+        Generic(FLClassDesc classDesc, String type, String className, boolean isInterface, String labelName, int index) {
             this.classDesc = classDesc
             this.type = type
             this.className = className
             this.isInterface = isInterface
-            this.descName = descName
+            this.labelName = labelName
             this.index = index
         }
 
@@ -342,25 +342,37 @@ class FLClassDesc implements FLConstant, Cloneable, FLJson {
             return className
         }
 
+        void setClassName(String className) {
+            this.className = className
+        }
+
         boolean getIsInterface() {
             return isInterface
         }
 
-        String getDescName() {
-            return descName
+        String getLabelName() {
+            return labelName
+        }
+
+        void setLabelName(String labelName) {
+            this.labelName = labelName
         }
 
         int getIndex() {
             return index
         }
 
+        void setIndex(int index) {
+            this.index = index
+        }
+
         @Override
-        Object clone() throws CloneNotSupportedException {
+        Generic clone() throws CloneNotSupportedException {
             def clone
             if (classDesc == null) {
-                clone = new Desc(null, type, className, isInterface, descName, index)
+                clone = new Generic(null, type, className, isInterface, labelName, index)
             } else {
-                clone = new Desc(classDesc.clone(), type, className, isInterface, descName, index)
+                clone = new Generic(classDesc.clone(), type, className, isInterface, labelName, index)
             }
             return clone
         }
@@ -371,7 +383,7 @@ class FLClassDesc implements FLConstant, Cloneable, FLJson {
             jsonObject.put("type", type)
             jsonObject.put("className", className)
             jsonObject.put("isInterface", isInterface)
-            jsonObject.put("descName", descName)
+            jsonObject.put("labelName", labelName)
             jsonObject.put("index", index)
             jsonObject.put("classDesc", FLUtil.fromObject(classDesc))
             return jsonObject
